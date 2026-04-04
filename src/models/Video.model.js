@@ -14,69 +14,45 @@ const videoSchema = new mongoose.Schema(
       maxlength: [500, 'Description cannot exceed 500 characters'],
       default: '',
     },
-    // Client-side storage key (IndexedDB reference — the video binary lives in the browser)
-    storageKey: {
-      type: String,
-      required: [true, 'storageKey is required'],
-    },
+
+    // ─── ImageKit CDN references ───────────────────────────────────────────
+    videoUrl:                 { type: String, required: true },
+    thumbnailUrl:             { type: String, default: null },
+    imagekitFileId:           { type: String, required: true },
+    imagekitThumbnailFileId:  { type: String, default: null },
+
+    // ─── File metadata ────────────────────────────────────────────────────
     originalName: { type: String, required: true },
-    fileSize: { type: Number, required: true },
-    mimeType: { type: String, required: true },
-    duration: { type: Number, default: 0 },
+    fileSize:     { type: Number, required: true },
+    mimeType:     { type: String, required: true },
+    duration:     { type: Number, default: 0 },
     resolution: {
-      width: { type: Number, default: 0 },
+      width:  { type: Number, default: 0 },
       height: { type: Number, default: 0 },
     },
-    codec: {
-      type: String,
-      default: 'unknown',
-    },
-    fps: {
-      type: Number,
-      default: 0,
-    },
-    bitrate: {
-      type: Number,
-      default: 0,
-    },
-    hasAudio: {
-      type: Boolean,
-      default: false,
-    },
-    isValidVideo: {
-      type: Boolean,
-      default: true,
-    },
+    codec:    { type: String, default: 'unknown' },
+    fps:      { type: Number, default: 0 },
+    bitrate:  { type: Number, default: 0 },
+    hasAudio: { type: Boolean, default: false },
+
+    // ─── Processing & sensitivity ─────────────────────────────────────────
     status: {
       type: String,
       enum: ['pending', 'processing', 'safe', 'flagged', 'error'],
       default: 'pending',
     },
-    processingProgress: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100,
-    },
-    sensitivityScore: {
-      type: Number,
-      default: null,
-      min: 0,
-      max: 1,
-    },
+    processingProgress: { type: Number, default: 0, min: 0, max: 100 },
+    sensitivityScore:   { type: Number, default: null, min: 0, max: 1 },
     sensitivityDetails: {
       violence: { type: Number, default: 0 },
-      adult: { type: Number, default: 0 },
-      hate: { type: Number, default: 0 },
+      adult:    { type: Number, default: 0 },
+      hate:     { type: Number, default: 0 },
     },
-    tags: [{ type: String, trim: true }],
-    uploadedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
+
+    tags:       [{ type: String, trim: true }],
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     organisation: { type: String, required: true },
-    isDeleted: { type: Boolean, default: false },
+    isDeleted:  { type: Boolean, default: false },
   },
   { timestamps: true }
 );

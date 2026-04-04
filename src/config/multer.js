@@ -1,5 +1,6 @@
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import ApiError from '../utils/ApiError.js';
 
@@ -12,9 +13,15 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 const MAX_SIZE_MB = parseInt(process.env.UPLOAD_SIZE_LIMIT_MB || '500', 10);
+const UPLOAD_DIR = 'uploads/videos/';
+
+// Ensure the upload directory exists
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/videos/'),
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${uuidv4()}${ext}`);

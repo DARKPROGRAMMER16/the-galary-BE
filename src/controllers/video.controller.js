@@ -1,65 +1,110 @@
-import { body } from 'express-validator';
+import fs from 'fs';
+import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import Video from '../models/Video.model.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import { processSensitivity } from '../services/sensitivity.service.js';
+import { uploadFile, deleteFile } from '../services/imagekit.service.js';
+import { validateVideoFile, generateThumbnail } from '../services/ffmpeg.service.js';
 
-// --- Validation rules ---
-
-export const uploadValidation = [
-  body('title').trim().notEmpty().withMessage('Title is required').isLength({ max: 100 }),
-  body('description').optional().trim().isLength({ max: 500 }),
-  body('tags').optional().isString(),
-  body('storageKey').trim().notEmpty().withMessage('storageKey is required'),
-  body('originalName').trim().notEmpty().withMessage('originalName is required'),
-  body('fileSize').isNumeric().withMessage('fileSize must be a number'),
-  body('mimeType').trim().notEmpty().withMessage('mimeType is required'),
-];
-
-// --- Handlers ---
+// ─── Upload ────────────────────────────────────────────────────────────────
 
 export const uploadVideo = async (req, res, next) => {
-  try {
-    const {
-      title,
-      description,
-      tags,
-      storageKey,
-      originalName,
-      fileSize,
-      mimeType,
-      duration,
-      resolution,
-    } = req.body;
+  let tempThumbPath = null;
 
+  try {
+    if (!req.file) return next(new ApiError(400, 'No video file provided.'));
+
+    const { title, description, tags } = req.body;
+    if (!title?.trim()) {
+      fs.unlink(req.file.path, () => {});
+      return next(new ApiError(400, 'Title is required.'));
+    }
+
+    // 1. Validate the file is a real video and extract metadata
+    const validation = await validateVideoFile(req.file.path);
+    if (!validation.valid) {
+      fs.unlink(req.file.path, () => {});
+      return next(new ApiError(400, `Invalid video file: ${validation.reason}`));
+    }
+
+    // 2. Generate thumbnail with ffmpeg (temp local file)
+    const tempId = uuidv4();
+    tempThumbPath = await generateThumbnail(req.file.path, tempId);
+
+    // 3. Upload video to ImageKit
+    const videoResult = await uploadFile(
+      req.file.path,
+      req.file.originalname,
+      '/galary/videos'
+    );
+
+    // 4. Upload thumbnail to ImageKit (if generated)
+    let thumbnailUrl = null;
+    let imagekitThumbnailFileId = null;
+    const resolvedThumbPath = tempThumbPath ? path.resolve(tempThumbPath) : null;
+
+    if (resolvedThumbPath && fs.existsSync(resolvedThumbPath)) {
+      const thumbResult = await uploadFile(
+        resolvedThumbPath,
+        `${videoResult.fileId}_thumb.jpg`,
+        '/galary/thumbnails'
+      );
+      thumbnailUrl = thumbResult.url;
+      imagekitThumbnailFileId = thumbResult.fileId;
+    }
+
+    // 5. Cleanup temp files
+    fs.unlink(req.file.path, () => {});
+    if (resolvedThumbPath && fs.existsSync(resolvedThumbPath)) {
+      fs.unlink(resolvedThumbPath, () => {});
+    }
+
+    // 6. Save metadata to MongoDB
     const tagsArray = tags
       ? tags.split(',').map((t) => t.trim()).filter(Boolean)
       : [];
 
     const video = await Video.create({
-      title,
-      description,
+      title: title.trim(),
+      description: description?.trim() ?? '',
       tags: tagsArray,
-      storageKey,
-      originalName,
-      fileSize: Number(fileSize),
-      mimeType,
-      duration: duration ? Number(duration) : 0,
-      resolution: resolution || { width: 0, height: 0 },
+      videoUrl: videoResult.url,
+      thumbnailUrl,
+      imagekitFileId: videoResult.fileId,
+      imagekitThumbnailFileId,
+      originalName: req.file.originalname,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype,
+      duration: validation.meta.duration,
+      resolution: validation.meta.resolution,
+      codec: validation.meta.codec,
+      fps: validation.meta.fps,
+      bitrate: validation.meta.bitrate,
+      hasAudio: validation.meta.hasAudio,
       uploadedBy: req.user._id,
       organisation: req.user.organisation,
     });
 
-    // Kick off mock sensitivity processing in the background — do not await
+    // 7. Kick off mock sensitivity analysis in the background
     processSensitivity(video._id.toString(), req.user._id.toString());
 
     res
       .status(201)
-      .json(new ApiResponse(201, { video }, 'Upload registered. Processing has started.'));
+      .json(new ApiResponse(201, { video }, 'Upload successful. Processing has started.'));
   } catch (err) {
+    // Clean up temp files on any error
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    if (tempThumbPath) {
+      const resolved = path.resolve(tempThumbPath);
+      if (fs.existsSync(resolved)) fs.unlink(resolved, () => {});
+    }
     next(err);
   }
 };
+
+// ─── List & single ─────────────────────────────────────────────────────────
 
 export const getVideos = async (req, res, next) => {
   try {
@@ -69,12 +114,10 @@ export const getVideos = async (req, res, next) => {
 
     const filter = {};
 
-    // Multi-tenancy isolation
     if (req.user.role !== 'admin') {
       filter.organisation = req.user.organisation;
     }
 
-    // Status filter
     if (status && ['pending', 'processing', 'safe', 'flagged', 'error'].includes(status)) {
       filter.status = status;
     }
@@ -119,6 +162,8 @@ export const getVideoById = async (req, res, next) => {
   }
 };
 
+// ─── Update ────────────────────────────────────────────────────────────────
+
 export const updateVideo = async (req, res, next) => {
   try {
     const video = await Video.findById(req.params.id);
@@ -141,6 +186,8 @@ export const updateVideo = async (req, res, next) => {
   }
 };
 
+// ─── Delete ────────────────────────────────────────────────────────────────
+
 export const deleteVideo = async (req, res, next) => {
   try {
     const video = await Video.findById(req.params.id);
@@ -151,7 +198,11 @@ export const deleteVideo = async (req, res, next) => {
       return next(new ApiError(403, 'Only the uploader or an admin can delete this video.'));
     }
 
-    video.isDeleted = true; // Soft delete
+    // Async cleanup from ImageKit — non-blocking, non-fatal
+    if (video.imagekitFileId) deleteFile(video.imagekitFileId);
+    if (video.imagekitThumbnailFileId) deleteFile(video.imagekitThumbnailFileId);
+
+    video.isDeleted = true;
     await video.save();
 
     res.json(new ApiResponse(200, null, 'Video deleted.'));
@@ -159,6 +210,8 @@ export const deleteVideo = async (req, res, next) => {
     next(err);
   }
 };
+
+// ─── Stats ─────────────────────────────────────────────────────────────────
 
 export const getStats = async (req, res, next) => {
   try {
