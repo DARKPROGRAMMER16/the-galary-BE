@@ -14,9 +14,12 @@ const videoSchema = new mongoose.Schema(
       maxlength: [500, 'Description cannot exceed 500 characters'],
       default: '',
     },
-    filename: { type: String, required: true },
+    // Client-side storage key (IndexedDB reference — the video binary lives in the browser)
+    storageKey: {
+      type: String,
+      required: [true, 'storageKey is required'],
+    },
     originalName: { type: String, required: true },
-    filePath: { type: String, required: true },
     fileSize: { type: Number, required: true },
     mimeType: { type: String, required: true },
     duration: { type: Number, default: 0 },
@@ -39,10 +42,6 @@ const videoSchema = new mongoose.Schema(
     hasAudio: {
       type: Boolean,
       default: false,
-    },
-    thumbnailPath: {
-      type: String,
-      default: null,
     },
     isValidVideo: {
       type: Boolean,

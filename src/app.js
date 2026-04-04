@@ -3,15 +3,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import { fileURLToPath } from 'url';
-import pathModule from 'path';
 import authRoutes from './routes/auth.routes.js';
 import videoRoutes from './routes/video.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import { errorHandler, notFound } from './middleware/error.middleware.js';
 import logger from './utils/logger.js';
-
-const __dirname = pathModule.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -54,16 +50,6 @@ app.use(morgan('dev', { stream: { write: (msg) => logger.http(msg.trim()) } }));
 // --- Body parsing ---
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// --- Static thumbnails (no auth, cacheable) ---
-// Access via: GET /thumbnails/<videoId>.jpg
-app.use(
-  '/thumbnails',
-  express.static(pathModule.join(__dirname, '../uploads/thumbnails'), {
-    maxAge: '1d',
-    immutable: true,
-  })
-);
 
 // --- Health check ---
 app.get('/health', (req, res) => {

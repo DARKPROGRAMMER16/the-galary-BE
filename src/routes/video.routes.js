@@ -3,8 +3,6 @@ import {
   uploadVideo,
   getVideos,
   getVideoById,
-  streamVideo,
-  serveThumbnail,
   updateVideo,
   deleteVideo,
   getStats,
@@ -13,7 +11,6 @@ import {
 import { protect } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/role.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
-import upload from '../config/multer.js';
 
 const router = Router();
 
@@ -24,14 +21,11 @@ router.use(protect);
 router.get('/stats', getStats);
 router.get('/', getVideos);
 router.get('/:id', getVideoById);
-router.get('/:id/stream', streamVideo);
-router.get('/:id/thumbnail', serveThumbnail);
 
 // Write — editor and admin only
 router.post(
   '/',
   requireRole('editor', 'admin'),
-  upload.single('video'),
   uploadValidation,
   validate,
   uploadVideo
