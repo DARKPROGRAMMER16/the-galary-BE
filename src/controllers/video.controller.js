@@ -6,7 +6,8 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import { processSensitivity } from '../services/sensitivity.service.js';
 import { uploadFile, deleteFile } from '../services/imagekit.service.js';
-import { validateVideoFile, generateThumbnail } from '../services/ffmpeg.service.js';
+import { validateVideoFile, generateThumbnail, extractFrames } from '../services/ffmpeg.service.js';
+import logger from '../utils/logger.js';
 
 // ─── Upload ────────────────────────────────────────────────────────────────
 
@@ -33,14 +34,23 @@ export const uploadVideo = async (req, res, next) => {
     const tempId = uuidv4();
     tempThumbPath = await generateThumbnail(req.file.path, tempId);
 
-    // 3. Upload video to ImageKit
+    // 3. Extract frames for Gemini sensitivity analysis (while temp file still exists)
+    //    Non-fatal — if extraction fails we proceed with empty frames array
+    let framePaths = [];
+    try {
+      framePaths = await extractFrames(req.file.path, tempId, 5);
+    } catch (e) {
+      logger.warn(`[Upload] Frame extraction skipped: ${e.message}`);
+    }
+
+    // 5. Upload video to ImageKit
     const videoResult = await uploadFile(
       req.file.path,
       req.file.originalname,
       '/galary/videos'
     );
 
-    // 4. Upload thumbnail to ImageKit (if generated)
+    // 6. Upload thumbnail to ImageKit (if generated)
     let thumbnailUrl = null;
     let imagekitThumbnailFileId = null;
     const resolvedThumbPath = tempThumbPath ? path.resolve(tempThumbPath) : null;
@@ -55,13 +65,13 @@ export const uploadVideo = async (req, res, next) => {
       imagekitThumbnailFileId = thumbResult.fileId;
     }
 
-    // 5. Cleanup temp files
+    // 7. Cleanup temp files
     fs.unlink(req.file.path, () => {});
     if (resolvedThumbPath && fs.existsSync(resolvedThumbPath)) {
       fs.unlink(resolvedThumbPath, () => {});
     }
 
-    // 6. Save metadata to MongoDB
+    // 8. Save metadata to MongoDB
     const tagsArray = tags
       ? tags.split(',').map((t) => t.trim()).filter(Boolean)
       : [];
@@ -87,8 +97,8 @@ export const uploadVideo = async (req, res, next) => {
       organisation: req.user.organisation,
     });
 
-    // 7. Kick off mock sensitivity analysis in the background
-    processSensitivity(video._id.toString(), req.user._id.toString());
+    // 9. Kick off Gemini sensitivity analysis in the background (pass frame paths)
+    processSensitivity(video._id.toString(), req.user._id.toString(), framePaths);
 
     res
       .status(201)

@@ -118,19 +118,21 @@ export const extractFrames = (filePath, videoId, intervalSeconds = 5) =>
     const outputDir = path.resolve(`uploads/frames/${videoId}`);
     ensureDir(outputDir);
 
-    const extractedPaths = [];
-
     ffmpeg(filePath)
-      .on('filenames', (filenames) => {
-        filenames.forEach((name) => {
-          extractedPaths.push(path.join(outputDir, name));
-        });
-      })
       .on('end', () => {
-        logger.debug(
-          `[FFmpeg] Extracted ${extractedPaths.length} frames for video ${videoId}`
-        );
-        resolve(extractedPaths);
+        // The 'filenames' event only fires for screenshots(), not .output() patterns.
+        // Read the directory after ffmpeg finishes to get the actual files.
+        try {
+          const files = fs.readdirSync(outputDir)
+            .filter((f) => f.endsWith('.jpg'))
+            .sort()
+            .map((f) => path.join(outputDir, f));
+          logger.debug(`[FFmpeg] Extracted ${files.length} frames for video ${videoId}`);
+          resolve(files);
+        } catch (err) {
+          logger.warn(`[FFmpeg] Could not read frames dir for ${videoId}: ${err.message}`);
+          resolve([]);
+        }
       })
       .on('error', (err) => {
         logger.error(`[FFmpeg] Frame extraction failed for ${videoId}: ${err.message}`);
