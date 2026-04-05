@@ -20,6 +20,7 @@ export const registerValidation = [
     .optional()
     .isIn(['viewer', 'editor', 'admin'])
     .withMessage('Role must be viewer, editor, or admin'),
+  // superadmin cannot be created via the public registration endpoint
 ];
 
 export const loginValidation = [
@@ -32,6 +33,10 @@ export const loginValidation = [
 export const register = async (req, res, next) => {
   try {
     const { name, email, password, organisation, role } = req.body;
+
+    if (role === 'superadmin') {
+      return next(new ApiError(403, 'Cannot register as superadmin.'));
+    }
 
     const existing = await User.findOne({ email });
     if (existing) return next(new ApiError(409, 'Email is already registered.'));

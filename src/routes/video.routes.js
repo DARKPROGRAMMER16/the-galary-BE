@@ -21,10 +21,10 @@ router.get('/stats', getStats);
 router.get('/', getVideos);
 router.get('/:id', getVideoById);
 
-// Write — editor and admin only
-router.post('/', requireRole('editor', 'admin'), upload.single('video'), uploadVideo);
-router.patch('/:id/assign', requireRole('editor', 'admin'), assignVideo);
-router.patch('/:id', requireRole('editor', 'admin'), updateVideo);
-router.delete('/:id', requireRole('editor', 'admin'), deleteVideo);
+// Write — editor, admin, and superadmin
+router.post('/', requireRole('editor', 'admin', 'superadmin'), upload.single('video'), uploadVideo);
+router.patch('/:id/assign', requireRole('editor', 'admin', 'superadmin'), assignVideo);
+router.patch('/:id', requireRole('editor', 'admin', 'superadmin'), updateVideo);
+router.delete('/:id', requireRole('editor', 'admin', 'superadmin'), deleteVideo);
 
 export default router;

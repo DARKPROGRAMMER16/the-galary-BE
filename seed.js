@@ -8,24 +8,33 @@ await connectDB();
 // Clear existing users
 await User.deleteMany({});
 
-// Create three demo users — one per role
 await User.create([
+  // ── SuperAdmin — not tied to any organisation ──────────────────────────
   {
-    name: 'Admin User',
+    name: 'Super Admin',
+    email: 'superadmin@galary.com',
+    password: 'SuperAdmin@123',
+    role: 'superadmin',
+    organisation: '',
+  },
+
+  // ── Demo Org ───────────────────────────────────────────────────────────
+  {
+    name: 'Demo Admin',
     email: 'admin@demo.com',
     password: 'Demo1234',
     role: 'admin',
     organisation: 'demo-org',
   },
   {
-    name: 'Editor User',
+    name: 'Demo Editor',
     email: 'editor@demo.com',
     password: 'Demo1234',
     role: 'editor',
     organisation: 'demo-org',
   },
   {
-    name: 'Viewer User',
+    name: 'Demo Viewer',
     email: 'viewer@demo.com',
     password: 'Demo1234',
     role: 'viewer',
@@ -34,8 +43,10 @@ await User.create([
 ]);
 
 console.log('✅ Seeded successfully.');
-console.log('   admin@demo.com / Demo1234 (admin)');
-console.log('   editor@demo.com / Demo1234 (editor)');
-console.log('   viewer@demo.com / Demo1234 (viewer)');
+console.log('');
+console.log('   superadmin@galary.com / SuperAdmin@123  (superadmin — no org)');
+console.log('   admin@demo.com        / Demo1234        (admin — demo-org)');
+console.log('   editor@demo.com       / Demo1234        (editor — demo-org)');
+console.log('   viewer@demo.com       / Demo1234        (viewer — demo-org)');
 
 await mongoose.disconnect();

@@ -7,6 +7,7 @@ import authRoutes from './routes/auth.routes.js';
 import videoRoutes from './routes/video.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import orgRoutes from './routes/org.routes.js';
+import superadminRoutes from './routes/superadmin.routes.js';
 import { errorHandler, notFound } from './middleware/error.middleware.js';
 import logger from './utils/logger.js';
 
@@ -62,6 +63,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/org', orgRoutes);
+app.use('/api/superadmin', superadminRoutes);
 
 // --- 404 + global error handler (must be last) ---
 app.use(notFound);

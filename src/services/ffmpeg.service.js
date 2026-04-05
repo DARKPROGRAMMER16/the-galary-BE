@@ -91,6 +91,8 @@ export const generateThumbnail = (filePath, videoId) =>
 // Multer checks the MIME type header, but a user can rename any file to .mp4.
 // This catches that by inspecting the real binary content.
 
+const MAX_DURATION_SECONDS = 60;
+
 export const validateVideoFile = async (filePath) => {
   try {
     const meta = await extractMetadata(filePath);
@@ -99,6 +101,12 @@ export const validateVideoFile = async (filePath) => {
     }
     if (meta.duration <= 0) {
       return { valid: false, reason: 'Video has zero duration.' };
+    }
+    if (meta.duration > MAX_DURATION_SECONDS) {
+      return {
+        valid: false,
+        reason: `Video exceeds the maximum allowed duration of ${MAX_DURATION_SECONDS} seconds (your video is ${Math.ceil(meta.duration)}s).`,
+      };
     }
     return { valid: true, meta };
   } catch (err) {

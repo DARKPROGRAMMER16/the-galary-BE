@@ -94,7 +94,11 @@ export const uploadVideo = async (req, res, next) => {
       bitrate: validation.meta.bitrate,
       hasAudio: validation.meta.hasAudio,
       uploadedBy: req.user._id,
-      organisation: req.user.organisation,
+      // Superadmin may specify a target org via the form body; everyone else uploads to own org
+      organisation:
+        req.user.role === 'superadmin' && req.body.organisation
+          ? req.body.organisation.trim()
+          : req.user.organisation,
     });
 
     // 9. Kick off Gemini sensitivity analysis in the background (pass frame paths)
@@ -125,14 +129,13 @@ export const getVideos = async (req, res, next) => {
     const filter = {};
 
     if (req.user.role === 'viewer') {
-      // Viewers see only videos assigned to them within their org
       filter.organisation = req.user.organisation;
       filter.assignedTo = req.user._id;
-    } else if (req.user.role === 'editor') {
-      // Editors see all videos in their org
+    } else if (req.user.role !== 'superadmin') {
+      // admin and editor are scoped to their own org
       filter.organisation = req.user.organisation;
     }
-    // admin: no filter — sees all organisations
+    // superadmin: no org filter — sees everything
 
     if (status && ['pending', 'processing', 'safe', 'flagged', 'error'].includes(status)) {
       filter.status = status;
@@ -171,7 +174,7 @@ export const getVideoById = async (req, res, next) => {
     if (req.user.role === 'viewer') {
       const isAssigned = video.assignedTo.some((id) => String(id) === String(req.user._id));
       if (!isAssigned) return next(new ApiError(403, 'This video has not been assigned to you.'));
-    } else if (req.user.role !== 'admin' && video.organisation !== req.user.organisation) {
+    } else if (req.user.role !== 'superadmin' && video.organisation !== req.user.organisation) {
       return next(new ApiError(403, 'Access denied.'));
     }
 
@@ -189,8 +192,8 @@ export const updateVideo = async (req, res, next) => {
     if (!video) return next(new ApiError(404, 'Video not found.'));
 
     const isOwner = String(video.uploadedBy) === String(req.user._id);
-    const isOrgEditor = req.user.role === 'editor' && video.organisation === req.user.organisation;
-    if (req.user.role !== 'admin' && !isOwner && !isOrgEditor) {
+    const isOrgPrivileged = ['admin', 'editor'].includes(req.user.role) && video.organisation === req.user.organisation;
+    if (req.user.role !== 'superadmin' && !isOwner && !isOrgPrivileged) {
       return next(new ApiError(403, 'Access denied.'));
     }
 
@@ -214,8 +217,8 @@ export const deleteVideo = async (req, res, next) => {
     if (!video) return next(new ApiError(404, 'Video not found.'));
 
     const isOwner = String(video.uploadedBy) === String(req.user._id);
-    const isOrgEditor = req.user.role === 'editor' && video.organisation === req.user.organisation;
-    if (req.user.role !== 'admin' && !isOwner && !isOrgEditor) {
+    const isOrgPrivileged = ['admin', 'editor'].includes(req.user.role) && video.organisation === req.user.organisation;
+    if (req.user.role !== 'superadmin' && !isOwner && !isOrgPrivileged) {
       return next(new ApiError(403, 'Access denied.'));
     }
 
@@ -239,7 +242,7 @@ export const assignVideo = async (req, res, next) => {
     const video = await Video.findById(req.params.id);
     if (!video) return next(new ApiError(404, 'Video not found.'));
 
-    if (req.user.role !== 'admin' && video.organisation !== req.user.organisation) {
+    if (req.user.role !== 'superadmin' && video.organisation !== req.user.organisation) {
       return next(new ApiError(403, 'Access denied.'));
     }
 
@@ -262,7 +265,7 @@ export const assignVideo = async (req, res, next) => {
 export const getStats = async (req, res, next) => {
   try {
     const matchFilter =
-      req.user.role === 'admin'
+      req.user.role === 'superadmin'
         ? { isDeleted: { $ne: true } }
         : { organisation: req.user.organisation, isDeleted: { $ne: true } };
 

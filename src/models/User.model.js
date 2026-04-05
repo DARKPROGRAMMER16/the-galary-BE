@@ -25,14 +25,13 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['viewer', 'editor', 'admin'],
+      enum: ['viewer', 'editor', 'admin', 'superadmin'],
       default: 'viewer',
     },
     organisation: {
       type: String,
-      required: [true, 'Organisation is required'],
       trim: true,
-      default: 'default',
+      default: '',
     },
     isActive: {
       type: Boolean,

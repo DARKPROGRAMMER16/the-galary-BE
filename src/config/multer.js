@@ -12,7 +12,7 @@ const ALLOWED_MIME_TYPES = [
   'video/mpeg',
 ];
 
-const MAX_SIZE_MB = parseInt(process.env.UPLOAD_SIZE_LIMIT_MB || '500', 10);
+const MAX_SIZE_MB = 10;
 const UPLOAD_DIR = 'uploads/videos/';
 
 // Ensure the upload directory exists

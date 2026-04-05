@@ -7,6 +7,15 @@ export const errorHandler = (err, req, res, next) => {
     `${err.statusCode || 500} — ${err.message} — ${req.method} ${req.originalUrl}`
   );
 
+  // Multer file size limit exceeded
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      success: false,
+      message: 'File too large. Maximum allowed size is 10 MB.',
+      errors: [],
+    });
+  }
+
   // Known operational error
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({
