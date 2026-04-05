@@ -20,7 +20,13 @@ export const registerValidation = [
     .optional()
     .isIn(['viewer', 'editor', 'admin'])
     .withMessage('Role must be viewer, editor, or admin'),
-  // superadmin cannot be created via the public registration endpoint
+];
+
+export const registerSuperAdminValidation = [
+  body('name').trim().notEmpty().withMessage('Name is required').isLength({ max: 50 }),
+  body('email').isEmail().withMessage('Valid email required').normalizeEmail(),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('secretKey').notEmpty().withMessage('Secret key is required'),
 ];
 
 export const loginValidation = [
@@ -84,6 +90,37 @@ export const login = async (req, res, next) => {
     });
 
     res.json(new ApiResponse(200, { user, token }, 'Login successful'));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const registerSuperAdmin = async (req, res, next) => {
+  try {
+    const { name, email, password, secretKey } = req.body;
+
+    const expectedSecret = process.env.SUPERADMIN_SECRET;
+    if (!expectedSecret) {
+      return next(new ApiError(500, 'Superadmin registration is not configured on this server.'));
+    }
+    if (secretKey !== expectedSecret) {
+      return next(new ApiError(403, 'Invalid secret key.'));
+    }
+
+    const existing = await User.findOne({ email });
+    if (existing) return next(new ApiError(409, 'Email is already registered.'));
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: 'superadmin',
+      organisation: '',
+    });
+
+    const token = signToken({ userId: user._id, role: user.role, organisation: '' });
+
+    res.status(201).json(new ApiResponse(201, { user, token }, 'Superadmin registered successfully'));
   } catch (err) {
     next(err);
   }

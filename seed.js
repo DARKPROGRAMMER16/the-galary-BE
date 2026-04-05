@@ -48,5 +48,8 @@ console.log('   superadmin@galary.com / SuperAdmin@123  (superadmin — no org)'
 console.log('   admin@demo.com        / Demo1234        (admin — demo-org)');
 console.log('   editor@demo.com       / Demo1234        (editor — demo-org)');
 console.log('   viewer@demo.com       / Demo1234        (viewer — demo-org)');
+console.log('');
+console.log('ℹ️  To register new superadmins via the UI, set SUPERADMIN_SECRET in your .env file.');
+console.log('   Then visit /superadmin-setup in the frontend.');
 
 await mongoose.disconnect();

@@ -122,7 +122,7 @@ export const uploadVideo = async (req, res, next) => {
 
 export const getVideos = async (req, res, next) => {
   try {
-    const { status, page = 1, limit = 12, sort = '-createdAt' } = req.query;
+    const { status, search, page = 1, limit = 12, sort = '-createdAt' } = req.query;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
 
@@ -139,6 +139,9 @@ export const getVideos = async (req, res, next) => {
 
     if (status && ['pending', 'processing', 'safe', 'flagged', 'error'].includes(status)) {
       filter.status = status;
+    }
+    if (search?.trim()) {
+      filter.title = { $regex: search.trim(), $options: 'i' };
     }
 
     const [videos, total] = await Promise.all([
