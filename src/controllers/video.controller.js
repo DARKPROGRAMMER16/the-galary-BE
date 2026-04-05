@@ -124,9 +124,15 @@ export const getVideos = async (req, res, next) => {
 
     const filter = {};
 
-    if (req.user.role !== 'admin') {
+    if (req.user.role === 'viewer') {
+      // Viewers see only videos assigned to them within their org
+      filter.organisation = req.user.organisation;
+      filter.assignedTo = req.user._id;
+    } else if (req.user.role === 'editor') {
+      // Editors see all videos in their org
       filter.organisation = req.user.organisation;
     }
+    // admin: no filter — sees all organisations
 
     if (status && ['pending', 'processing', 'safe', 'flagged', 'error'].includes(status)) {
       filter.status = status;
@@ -162,7 +168,10 @@ export const getVideoById = async (req, res, next) => {
     const video = await Video.findById(req.params.id).populate('uploadedBy', 'name email');
     if (!video) return next(new ApiError(404, 'Video not found.'));
 
-    if (req.user.role !== 'admin' && video.organisation !== req.user.organisation) {
+    if (req.user.role === 'viewer') {
+      const isAssigned = video.assignedTo.some((id) => String(id) === String(req.user._id));
+      if (!isAssigned) return next(new ApiError(403, 'This video has not been assigned to you.'));
+    } else if (req.user.role !== 'admin' && video.organisation !== req.user.organisation) {
       return next(new ApiError(403, 'Access denied.'));
     }
 
@@ -180,8 +189,9 @@ export const updateVideo = async (req, res, next) => {
     if (!video) return next(new ApiError(404, 'Video not found.'));
 
     const isOwner = String(video.uploadedBy) === String(req.user._id);
-    if (req.user.role !== 'admin' && !isOwner) {
-      return next(new ApiError(403, 'Only the uploader or an admin can edit this video.'));
+    const isOrgEditor = req.user.role === 'editor' && video.organisation === req.user.organisation;
+    if (req.user.role !== 'admin' && !isOwner && !isOrgEditor) {
+      return next(new ApiError(403, 'Access denied.'));
     }
 
     const { title, description, tags } = req.body;
@@ -204,8 +214,9 @@ export const deleteVideo = async (req, res, next) => {
     if (!video) return next(new ApiError(404, 'Video not found.'));
 
     const isOwner = String(video.uploadedBy) === String(req.user._id);
-    if (req.user.role !== 'admin' && !isOwner) {
-      return next(new ApiError(403, 'Only the uploader or an admin can delete this video.'));
+    const isOrgEditor = req.user.role === 'editor' && video.organisation === req.user.organisation;
+    if (req.user.role !== 'admin' && !isOwner && !isOrgEditor) {
+      return next(new ApiError(403, 'Access denied.'));
     }
 
     // Async cleanup from ImageKit — non-blocking, non-fatal
@@ -216,6 +227,31 @@ export const deleteVideo = async (req, res, next) => {
     await video.save();
 
     res.json(new ApiResponse(200, null, 'Video deleted.'));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Assign ────────────────────────────────────────────────────────────────
+
+export const assignVideo = async (req, res, next) => {
+  try {
+    const video = await Video.findById(req.params.id);
+    if (!video) return next(new ApiError(404, 'Video not found.'));
+
+    if (req.user.role !== 'admin' && video.organisation !== req.user.organisation) {
+      return next(new ApiError(403, 'Access denied.'));
+    }
+
+    const { viewerIds } = req.body;
+    if (!Array.isArray(viewerIds)) {
+      return next(new ApiError(400, 'viewerIds must be an array.'));
+    }
+
+    video.assignedTo = viewerIds;
+    await video.save();
+
+    res.json(new ApiResponse(200, { video }, 'Video assignment updated.'));
   } catch (err) {
     next(err);
   }

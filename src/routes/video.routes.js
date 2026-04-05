@@ -5,6 +5,7 @@ import {
   getVideoById,
   updateVideo,
   deleteVideo,
+  assignVideo,
   getStats,
 } from '../controllers/video.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
@@ -22,6 +23,7 @@ router.get('/:id', getVideoById);
 
 // Write — editor and admin only
 router.post('/', requireRole('editor', 'admin'), upload.single('video'), uploadVideo);
+router.patch('/:id/assign', requireRole('editor', 'admin'), assignVideo);
 router.patch('/:id', requireRole('editor', 'admin'), updateVideo);
 router.delete('/:id', requireRole('editor', 'admin'), deleteVideo);
 

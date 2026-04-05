@@ -50,6 +50,7 @@ const videoSchema = new mongoose.Schema(
     },
 
     tags:       [{ type: String, trim: true }],
+    assignedTo: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     organisation: { type: String, required: true },
     isDeleted:  { type: Boolean, default: false },
